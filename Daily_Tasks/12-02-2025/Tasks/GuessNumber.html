@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Guess the Number Game</title>
+</head>
+<body>
+
+    <h2>Guess the Number Game</h2>
+    <p>Open the browser console (`F12`) and run the script!</p>
+
+    <script>
+        function guessNumberGame() {
+            let randomNumber = Math.floor(Math.random() * 10) + 1;
+            let userGuess = parseInt(prompt("Guess a number between 1 and 10:"));
+
+            if (userGuess === randomNumber) {
+                alert("Good Work! You guessed it right.");
+            } else {
+                alert(`Not matched!`);
+            }
+        }
+
+        guessNumberGame();
+    </script>
+
+</body>
+</html>
