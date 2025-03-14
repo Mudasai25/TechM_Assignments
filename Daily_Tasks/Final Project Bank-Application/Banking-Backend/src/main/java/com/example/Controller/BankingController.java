@@ -1,444 +1,341 @@
-package com.example.service;
+package com.example.controller;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import java.util.stream.Collectors;
 
-import com.example.model.Banking;
 import com.example.exception.BankingException;
-import com.example.facility.Facility;
+import com.example.model.Banking;
+//import com.example.model.Loan;
 import com.example.repo.BankingRepo;
+import com.example.service.BankingService;
 
-@Service
-public class BankingService {
+@RestController
+@CrossOrigin(origins="http://localhost:4200")
+@RequestMapping("/api/banking")  
+public class BankingController {
 	@Autowired
 	private BankingRepo repo;
-	Map<String,String> l=new HashMap<>();
-	public Banking register(Banking user) {
-	    if (repo.existsById(user.getUsername())) {
-	        return null;  
-	    }
-	    return repo.save(user);  
-	}
-	
-
-	public Banking login(String id, String pass) throws BankingException {
-	    Optional<Banking> user = repo.findById(id);
-
-	    if (user.isPresent()) {
-	        if (user.get().getPassword().equals(pass)) {
-	            return user.get(); 
-	        } else {
-	            throw new BankingException("Incorrect password!");
-	        }
-	    } else {
-	        throw new BankingException("User not found!");
-	    }
-	}
-	
-
-	public Banking elogin(String id, String pass) throws BankingException {
-	    Optional<Banking> user = repo.findById(id);
-
-	    if (user.isPresent()) {
-	    	if(user.get().isEmployee()) {
-				return user.get();
-			}
-			else {
-				throw new BankingException("Wrong Username or password");
-			}
-	    } else {
-	        throw new BankingException("User not found!");
-	    }
-	}
-	
-	public Banking alogin(String id, String pass) throws BankingException {
-	    Optional<Banking> user = repo.findById(id);
-
-	    if (user.isPresent()) {
-	    	if(user.get().isAdmin()) {
-				return user.get();
-			}
-			else {
-				throw new BankingException("Wrong Username or password");
-			}
-	    } else {
-	        throw new BankingException("❌ User not found!");
-	    }
-	}
-
-	public List<Banking> getAllBankingUsers() {
-	    return repo.findAll(); // Assuming bankingRepo extends JpaRepository<Banking, String>
-	}
-
-	public double getBalance(String username, String password) {
-        Optional<Banking> user = repo.findById(username);
-        
-        if (user.isPresent()) {
-            Banking banking = user.get();
-
-            // Check if password matches
-            if (banking.getPassword().equals(password)) {
-                return banking.getBalance();
-            } else {
-                throw new RuntimeException("Incorrect password for user: " + username);
-            }
-        } else {
-            throw new RuntimeException("User not found: " + username);
-        }
+	@Autowired
+	private BankingService s;
+	public BankingController(BankingRepo repo) {
+        this.repo = repo;
     }
-	public String deposit(Banking b, double val) {
-	    if (b.getTransaction() == null) {  
-	        b.setTransaction(new ArrayList<>());
-	    }
-	    
-	    if (b.getTransaction() == null) {  // Fix: Ensure TransPer is initialized
-	        b.setTransaction(new ArrayList<>());
-	    }
-	    
-	    if (val > 50000) {
-	        if (b.isAllowTrans()) {
-	            b.setAllowTrans(false);
-	            if (b.getFacility().equals(Facility.valueOf("Full"))) {
-	                System.out.println(b.getBalance());
-	                b.setBalance(b.getBalance() + val);
-	                System.out.println(b.getBalance());
-	                b.setFacility(Facility.valueOf("Full"));
-	                b.getTransaction().add(val);
-	                b.setAllowTrans(false);
-	                b.setNeededTransaction(false);
-	                repo.save(b);
-	                login(b.getUsername(), b.getPassword());
-	                return "Money deposited properly";
-	            } else {
-	                return "Money can't be deposited";
-	            }
-	        } else {
-	            b.setNeededTransaction(true);
-	            b.getTransaction().add(val);  // Safe: TransPer is now initialized
-	            repo.save(b);
-	            return "Wait for Manager to Approve";
-	        }
+	/*@PostMapping("/register")
+	public ResponseEntity<?> register(@RequestBody Banking b) {
+		return ResponseEntity.ok().body(Map.of("success", true, "message",s.register(b)));
+	}*/
+	@GetMapping("/users")
+	public ResponseEntity<List<Map<String, Object>>> getAllUsers() {
+	    List<Banking> users = repo.findAll();
+	    List<Map<String, Object>> response = users.stream().map(user -> {
+            Map<String, Object> userMap = new HashMap<>();
+            userMap.put("username", user.getUsername());
+            userMap.put("isAdmin", user.isAdmin());
+            userMap.put("isEmployee", user.isEmployee());
+            userMap.put("freeze", user.isFreeze());
+            userMap.put("email", user.getEmail());
+            userMap.put("balance", user.getBalance());
+            userMap.put("amount", user.getNeededLoan());
+
+            
+            return (Map<String, Object>) userMap; // ✅ Explicitly cast to Map<String, Object>
+        }).collect(Collectors.toList());
+	    return ResponseEntity.ok(response);
+	}
+
+
+	
+	
+	@PostMapping("/register")
+	public ResponseEntity<?> register(@RequestBody Banking b) {
+	    Banking savedUser = s.register(b);
+	    if (savedUser != null) {
+	        return ResponseEntity.ok().body(Map.of("success", true, "message", "User registered successfully"));
 	    } else {
-	        if (b.getFacility().equals(Facility.valueOf("view"))) {
-	            return "Money can't be deposited";
-	        } else {
-	            b.setBalance(b.getBalance() + val);
-	            b.getTransaction().add(val);
-	            repo.save(b);
-	            return "Money deposited properly";
-	        }
+	        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Registration failed"));
 	    }
 	}
 
-	public String withdraw(Banking b, double val) {
-	    if (b.getTransaction() == null) {  
-	        b.setTransaction(new ArrayList<>());
+	/*@GetMapping("/login/{id}/{pass}")
+	public Banking login(@PathVariable String id,@PathVariable String pass) {
+		return s.login(id, pass);
+	}*/
+	@GetMapping("/login/{id}/{pass}")
+	public ResponseEntity<?> login(@PathVariable String id, @PathVariable String pass) {
+	    try {
+	        Banking user = s.login(id, pass);
+	        return ResponseEntity.ok().body(Map.of("success", true, "message", "✅ Login successful!", "user", user));
+	    } catch (BankingException e) {
+	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", e.getMessage()));
 	    }
-
-	    if (val > b.getBalance()) {  // ❌ Check for insufficient balance
-	        return "Insufficient balance. Withdrawal failed.";
-	    }
-
-	    if (val > 25000) {  // 🔹 For withdrawals > 25,000
-	        if (b.isAllowTrans()) {
-	            b.setAllowTrans(false);
-	            if (b.getFacility().equals(Facility.valueOf("Full"))) {
-	                b.setBalance(b.getBalance() - val);
-	                b.getTransaction().add(-val);
-	                repo.save(b);
-	                return "Withdrawal successful.";
-	            } else {
-	                return "Withdrawal can't be processed.";
-	            }
-	        } else {
-	            b.setNeededTransaction(true);
-	            b.getTransaction().add(-val);
-	            repo.save(b);
-	            return "Wait for Manager to Approve.";
-	        }
-	    } else {  // 🔹 For withdrawals ≤ 25,000
-	        if (b.getFacility().equals(Facility.valueOf("view"))) {  
-	            return "Withdrawal not allowed.";
-	        } else {
-	            b.setBalance(b.getBalance() - val);
-	            b.getTransaction().add(-val);
-	            repo.save(b);
-	            return "Withdrawal successful.";
-	        }
-	    }
-	}
-
-	public double getBalance(String username) {
-	    return repo.findById(username)
-	        .map(Banking::getBalance)
-	        .orElseThrow(() -> new RuntimeException("User Balance Service not found"));
-	}
-
-	public double balance(Banking b) {
-		return b.getBalance();
-	}
-	public String transaction(Banking b,String id,double val) throws BankingException{
-		if (b.getTransaction() == null) {
-	        b.setTransaction(new ArrayList<>());
-	    }
-		if(withdraw(b,val).equals("Money withdrawl is done properly")) {
-			Banking x = repo.findById(id).orElseThrow(()->new BankingException("User not found with the User name "+id));
-			System.out.println("Balance of "+b.getUsername()+" is: "+b.getBalance());
-			if (x.getTransaction() == null) {
-	            x.setTransaction(new ArrayList<>());
-	        }
-			if(deposit(x,val).equals("Money deposited properly")) {
-				System.out.println("Balance of "+id+" is: "+x.getBalance());
-				return "Transaction is made properly";
-			}
-			else {
-				deposit(b,val);
-				return "Transaction failed";
-			}
-		}
-		else {
-			return "transaction failed";
-		}
 	}
 	
-	public String loan(Banking b, String type, float l, int time) {
-	    if (b.getTransaction() == null) {  
-	        b.setTransaction(new ArrayList<>());
+	@GetMapping("/elogin/{id}/{pass}")
+	public ResponseEntity<?> elogin(@PathVariable String id, @PathVariable String pass) {
+	    try {
+	        Banking user = s.elogin(id, pass);
+	        return ResponseEntity.ok().body(Map.of("success", true, "message", "✅ Login successful!", "user", user));
+	    } catch (BankingException e) {
+	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", e.getMessage()));
+	    }
+	}
+	@GetMapping("/alogin/{id}/{pass}")
+	public ResponseEntity<?> alogin(@PathVariable String id, @PathVariable String pass) {
+	    try {
+	        Banking user = s.alogin(id, pass);
+	        return ResponseEntity.ok().body(Map.of("success", true, "message", "✅ Login successful!", "user", user));
+	    } catch (BankingException e) {
+	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", e.getMessage()));
+	    }
+	}
+	
+	/*public ResponseEntity<?> alogin(@PathVariable String id, @PathVariable String pass) {
+        try {
+            Banking user = s.alogin(id, pass);
+            return ResponseEntity.ok().body(Map.of("success", true, "message", "✅ Login successful!", "user", user));
+        } catch (BankingException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("success", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("success", false, "message", "🚨 Internal Server Error!"));
+        }
+    }*/
+
+
+
+	/*@GetMapping("/elogin/{id}/{pass}")
+	public Banking elogin(@PathVariable String id,@PathVariable String pass) {
+		return s.elogin(id, pass);
+	}
+	@GetMapping("/alogin/{id}/{pass}")
+	public Banking alogin(@PathVariable String id,@PathVariable String pass) {
+		return s.alogin(id, pass);
+	}*/
+	@PutMapping("/login/{id}/{pass}/deposit/{val}")
+	public ResponseEntity<String> deposit(@PathVariable String id, @PathVariable String pass, @PathVariable double val) {
+	    Banking user = s.login(id, pass); // Authenticate user
+	    if (user == null) {
+	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
 	    }
 
-	    b.setLoanval(b.getLoanval() + l);
-	    type = type.toLowerCase(); // Normalize case
+	    String message = s.deposit(user, val);
+	    return ResponseEntity.ok(message);
+	}
 
-	    // Interest Calculation
-	    double interestRate;
-	    switch (type) {
-	        case "vehicle":
-	            interestRate = 1.10;
-	            break;
-	        case "home":
-	            interestRate = 1.08;
-	            break;
-	        case "education":
-	            interestRate = 1.06;
-	            break;
-	        default:
-	            interestRate = 1.05;
-	            break;
-	    }
-	    b.setIntrest((l * Math.pow(interestRate, time)) - l);
-
-	    // Loan Approval Logic
-	    if (b.isAllowLoan()) {
-	        b.setBalance(b.getBalance() + l);
-	        b.setAllowLoan(false);
-	        repo.save(b);
-	        return "Loan is provided successfully.";
+	/*@PutMapping("/login/{id}/{pass}/deposit/{val}")
+	public String deposit(@PathVariable String id,@PathVariable String pass,@PathVariable double val) {
+		return s.deposit(s.login(id, pass), val);
+	}*/
+	@PutMapping("/login/{id}/{pass}/withdraw/{val}")
+	public String withdraw(@PathVariable String id,@PathVariable String pass,@PathVariable double val) {
+		return s.withdraw(s.login(id, pass), val);
+	}
+	
+	@GetMapping("/{username}/{password}/balance")
+	public ResponseEntity<Double> getBalance(@PathVariable String username, @PathVariable String password) {
+	    Optional<Banking> user = repo.findById(username);
+	    
+	    if (user.isPresent() && user.get().getPassword().equals(password)) {
+	        return ResponseEntity.ok(user.get().getBalance());
 	    } else {
-	        b.setNeedLoan(true);
-	        b.setNeededLoan(l);
-	        b.setLoanTime(time);
-	        b.setLoanType(type);
-	        repo.save(b);
-	        return "Loan is pending approval.";
+	        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(0.0);
 	    }
 	}
 
-	public List<Double> getTrans(Banking b){
-		return b.getTransaction();
+	
+	@GetMapping("/login/{id}/{pass}/balance")
+	public double balance(@PathVariable String id,@PathVariable String pass) {
+		return s.balance(s.login(id, pass));
 	}
-	public List<Double> getAllTrans(Banking b, String id) {
-	    Optional<Banking> userOpt = repo.findById(id);
-	    if (userOpt.isPresent()) {
-	        return userOpt.get().getTransaction(); // Get the correct user's transactions
-	    } else {
-	        throw new BankingException("There is no user with UserName " + id);
-	    }
+	@PutMapping("/login/{id}/{pass}/loan/{type}/{val}/{time}")
+	public String loan(@PathVariable String id, @PathVariable String pass, 
+	                   @PathVariable String type, @PathVariable float val, 
+	                   @PathVariable int time) {
+	    return s.loan(s.login(id, pass), type, val, time);
 	}
-
-	public List<Banking> getAllDetails(Banking b) {
-		return repo.findAll();
+	@GetMapping("/elogin/{id}/{pass}/details")
+	public List<Banking> getAllDetails(@PathVariable String id,@PathVariable String pass) {
+		return s.getAllDetails(s.elogin(id, pass));
 	}
-	public Optional<Banking> getDetails(Banking b,String id) {
-		if(repo.existsById(id)) {
-			return repo.findById(id);
-		}
-		else {
-			throw new BankingException("Wrong Username"); 
-		}
+	@GetMapping("/elogin/{id}/{pass}/details/id1")
+	public Optional<Banking> getAllDetails(@PathVariable String id,@PathVariable String pass,@PathVariable String id1) {
+		return s.getDetails(s.elogin(id, pass), id1);
 	}
-	public Banking getMyDetails(Banking b){
-		return b;
+	@GetMapping("/login/{id}/{pass}/details")
+	public Banking getMyDetails(@PathVariable String id,@PathVariable String pass) {
+		return s.login(id, pass);
 	}
-	/*public String addFeed(Banking b, String message) {
-		b.setMessage(message);
-		repo.save(b);
-		return "Feedback is given successfully";
+	@PutMapping("/login/{id}/{pass}/trans/{id1}/{val}")
+	public String transaction(@PathVariable String id,@PathVariable String pass,@PathVariable String id1,@PathVariable double val) {
+		return s.transaction(s.login(id, pass), id1, val);
 	}
-	public List<String> getAllFeedback(Banking b){
-		return repo.findAll().stream()
-				.map(Banking::getMessage)
-	            .filter(msg -> msg != null && !msg.isEmpty())
-	            .collect(Collectors.toList());
+	/*@PutMapping("/login/{id}/{pass}/feedback/{message}")
+	public String feedback(@PathVariable String id,@PathVariable String pass,@PathVariable String message) {
+		return s.addFeed(s.login(id, pass), message);
 	}*/
 	
-	public String addFeed(Banking banking, String message) {
-	    if (banking == null) {
-	        throw new RuntimeException("Invalid banking credentials.");
+	@PutMapping("/login/{id}/{pass}/feedback/{message}")
+	public ResponseEntity<String> feedback(
+	    @PathVariable String id, 
+	    @PathVariable String pass, 
+	    @PathVariable String message) {
+
+	    try {
+	        String response = s.addFeed(s.login(id, pass), message);
+	        return ResponseEntity.ok(response);
+	    } catch (Exception e) {
+	        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Failed to submit query: " + e.getMessage());
+	    }
+	}
+
+
+	@GetMapping("/elogin/{id}/{pass}/getfeedbacks")
+	public ResponseEntity<List<Map<String, String>>> getAllFeedbacks(@PathVariable String id, @PathVariable String pass) {
+	    Banking bankingUser = s.login(id, pass);
+	    if (bankingUser == null || !bankingUser.isEmployee()) {
+	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 	    }
 
-	    banking.setMessage(message);  // Store feedback in banking entity
-	    repo.save(banking);  // Save to database
-	    return "Feedback updated successfully.";
-	}
-
-
-	public String getAllFeedback(Banking banking) {
-	    if (banking == null) {
-	        throw new RuntimeException("Unauthorized access.");
+	    List<Banking> allUsers = s.getAllBankingUsers(); // Fetch all users from Banking
+	    if (allUsers.isEmpty()) {
+	        return ResponseEntity.noContent().build(); // Return 204 if no users exist
 	    }
 
-	    return banking.getMessage() == null ? "No feedback available" : banking.getMessage();
+	    List<Map<String, String>> feedbackList = allUsers.stream()
+	        .filter(user -> user.getMessage() != null && !user.getMessage().isEmpty()) // Filter users with messages
+	        .map(user -> {
+	            Map<String, String> feedback = new HashMap<>();
+	            feedback.put("Username", user.getUsername());
+	            feedback.put("Message", user.getMessage());
+	            return feedback;
+	        })
+	        .toList(); 
+
+	    return ResponseEntity.ok(feedbackList);
 	}
 
-	public void updateBanking(Banking banking) {
-	    if (banking == null) {
-	        throw new RuntimeException("Invalid banking user.");
-	    }
-	    repo.save(banking);  // Save updated data to database
-	}
 
 
-
-	public String makeEmp(Banking b,String id) {
-		if(b.isAdmin()) {
-			Banking x = repo.getById(id);
-			x.setEmployee(true);
-			repo.save(x);
-			return "Entry of a new employee is done with User name "+id;
-		}
-		else {
-			return "It is restricted to Admin";
-		}
-	}
-	public String deleteData(Banking b,String id) throws BankingException {
-		if(b.isAdmin()) {
-			if(repo.existsById(id)) {
-				repo.deleteById(id);
-				return "User name with id "+id+" is deleted";
-			}
-			else {
-				throw new BankingException("There is no user with user name"+id);
-			}
-		}
-		else {
-			throw new BankingException("It is restricted");
-		}
-	}
-	/*public String freeze(Banking b,String id) {
-		if(repo.existsById(id)) {
-			Banking x = repo.getById(id);
-			x.setFacility(Facility.valueOf("view"));
-			x.setAllowLoan(false);
-			x.setAllowTrans(false);
-			x.setNeededTransaction(false);
-			x.setNeedLoan(false);
-			x.setFreeze(true);
-			repo.save(x);
-			return "The account of user with "+id+" is freezed";
-		}
-		else {
-			throw new BankingException("There is no user with user name"+id);
-		}
+   	/*@GetMapping("/elogin/{id}/{pass}/getfeedback")
+	public List<String> getFeedback(@PathVariable String id,@PathVariable String pass) {
+		return s.getAllFeedback(s.login(id, pass));
 	}*/
-	
-	public String freeze(String userId) {
-	    Optional<Banking> optionalUser = repo.findById(userId);
+	@GetMapping("/login/{id}/{pass}/trans")
+    public List<Double> getTransaction(@PathVariable String id, @PathVariable String pass) {
+        Banking user = s.login(id, pass);
+        if (user != null) {
+            return s.getTrans(user);
+        }
+        return Collections.emptyList(); // Return empty list if user is not found
+    }
+	@GetMapping("/elogin/{id}/{pass}/trans/{id1}")
+	public List<Double> getTransaction(@PathVariable String id,@PathVariable String pass,@PathVariable String id1){
+		return s.getAllTrans(s.elogin(id, pass), id1);
+	}
+	@PutMapping("/alogin/{id}/{pass}/emp/{id1}")
+	public String makeEmp(@PathVariable String id,@PathVariable String pass,@PathVariable String id1) {
+		return s.makeEmp(s.alogin(id, pass), id1);
+	}
+	/*@GetMapping("/elogin/{id}/{pass}/approve")
+	public List<String> showApproval(@PathVariable String id,@PathVariable String pass) {
+		return s.showApprovals(s.elogin(id, pass));
+	}*/
+	@PutMapping("/elogin/{id}/{pass}/trans/approve/{id1}/{b}")
+	public String approveTrans(@PathVariable String id,@PathVariable String pass,@PathVariable String id1,@PathVariable boolean b) {
+		return s.approveTrans(s.elogin(id, pass), id1,b);
+	}
+	/*@GetMapping("/elogin/{id}/{pass}/approve")
+    public List<String> showApproval(@PathVariable String id, @PathVariable String pass) {
+        return s.showApprovals(s.elogin(id, pass));
+    }
 
-	    if (!optionalUser.isPresent()) {
-	        throw new BankingException("No user found with ID: " + userId);
-	    }
-
-	    Banking user = optionalUser.get();
-	    user.setFacility(Facility.valueOf("view"));
-	    user.setAllowLoan(false);
-	    user.setAllowTrans(false);
-	    user.setNeededTransaction(false);
-	    user.setNeedLoan(false);
-	    user.setFreeze(true);
+    // Approve or Reject Loan
+    @PutMapping("/elogin/{id}/{pass}/loan/approve/{loanId}/{status}")
+    public String approveLoan(
+        @PathVariable String id, 
+        @PathVariable String pass,
+        @PathVariable String loanId, 
+        @PathVariable boolean status
+    ) {
+        return s.approveLoan(s.elogin(id, pass), loanId, status);
+    }*/
+	@GetMapping("/loans")
+	public List<Map<String, Object>> getAllLoans() {
+	    List<Map<String, Object>> loans = repo.findAll().stream()
+	        .filter(Banking::isNeedLoan)
+	        .map(user -> {
+	            Map<String, Object> loanData = new HashMap<>();
+	            loanData.put("id", user.getUsername());
+	            loanData.put("username", user.getUsername());
+	            loanData.put("neededLoan", user.getNeededLoan());
+	            loanData.put("loanType", user.getLoanType());
+	            loanData.put("status", user.isAllowTrans() ? "Approved" : "Pending");
+	            return loanData;
+	        }).collect(Collectors.toList());
 	    
-	    repo.save(user);
-	    return " The account of user with ID: " + userId + " has been frozen.";
+	    return loans;
 	}
 
 
-
-	public String approveTrans(Banking b, String id,boolean a) {
-		Banking x=repo.getById(id);
-		x.setAllowTrans(a);
-		if(a) {
-			double val=x.getTransaction().get(x.getTransaction().size()-1);
-			System.out.println(val);
-			if(val>0) {
-				System.out.println("Deposit");
-				return deposit(x,val);
-			}
-			else {
-				System.out.println("Withdraw");
-				return withdraw(x,Math.abs(val));
-			}
-		}
-		else {
-			return "Transaction is not approved";
-		}
+	@PutMapping("/elogin/{id}/{pass}/loan/approve/{loanId}/{status}")
+	public ResponseEntity<String> approveLoan(@PathVariable String id, @PathVariable String pass,
+	                                          @PathVariable String loanId, @PathVariable boolean status) {
+	    Banking user = s.elogin(id, pass); // Authenticate Employee
+	    String response = s.approveLoan(user, loanId, status);
+	    return ResponseEntity.ok(response);
 	}
-	
-	
-	public List<Map<String, Object>> getPendingLoans(List<Map<String, Object>> loans) {
-        List<Map<String, Object>> pendingLoans = new ArrayList<>();
-        for (Map<String, Object> loan : loans) {
-            if ("Pending".equals(loan.get("status"))) {
-                pendingLoans.add(loan);
-            }
-        }
-        return pendingLoans;
-    }
 
-	public String approveLoan(Banking user, String loanId, boolean status) {
-	    Optional<Banking> loanUser = repo.findById(loanId);
+	
+	@GetMapping("/elogin/{id}/{pass}/approve")
+	public List<Map<String, Object>> showApproval(@PathVariable String id, @PathVariable String pass) {
+	    List<String> approvals = s.showApprovals(s.elogin(id, pass));
 
-	    if (loanUser.isPresent()) {
-	        Banking loan = loanUser.get();
-	        loan.setAllowTrans(status); // Approve or Reject
-	        repo.save(loan);
-	        return "Loan " + (status ? "approved" : "rejected") + " for user: " + loan.getUsername();
-	    } else {
-	        throw new RuntimeException("Loan application not found for ID: " + loanId);
+	    return approvals.stream().map(approval -> {
+	        Map<String, Object> approvalData = new HashMap<>();
+	        approvalData.put("approvalInfo", approval);
+	        return approvalData;
+	    }).collect(Collectors.toList());
+	}
+
+
+	@DeleteMapping("/alogin/{id}/{pass}/delete/{id1}")
+	public String delete(@PathVariable String id,@PathVariable String pass,@PathVariable String id1) {
+		return s.deleteData(s.alogin(id, pass), id1);
+	}
+	/*@PutMapping("/alogin/{id}/pass/freeze/{id1}")
+	public String freeze(@PathVariable String id,@PathVariable String pass,@PathVariable String id1) {
+		return s.freeze(s.alogin(id, pass), id1);
+	}*/
+	@PutMapping("/alogin/{adminId}/{pass}/freeze/{userId}")
+	public ResponseEntity<?> freezeUser(@PathVariable String adminId, @PathVariable String pass, @PathVariable String userId) {
+	    Banking admin = s.alogin(adminId, pass);
+
+	    if (admin == null || !admin.isAdmin()) {
+	        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("❌ Unauthorized: Only admins can freeze accounts");
 	    }
+
+	    String result = s.freeze(userId);  // ✅ Only pass the user ID
+	    return ResponseEntity.ok(result);
 	}
 
 
-    public List<Map<String, Object>> getAllLoans(List<Map<String, Object>> loans) {
-        return loans;
-    }
-    public List<String> showApprovals(Banking banking) {
-        List<String> approvals = new ArrayList<>();
-        List<Banking> users = repo.findAll();
-        
-        for (Banking user : users) {
-            if (user.isNeedLoan() && !user.isAllowTrans()) {
-                approvals.add("Loan pending for user: " + user.getUsername());
-            }
-        }
-
-        return approvals;
-    }
-
-	
 }
